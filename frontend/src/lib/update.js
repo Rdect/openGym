@@ -12,7 +12,7 @@
 import { MOBILE } from './mobile.js'
 import { BUILTIN_PX } from './anim-quality.js'
 
-const REPO = 'DuarteSantos8/openGym'
+const REPO = 'Rdect/openGym'
 const LATEST_URL = `https://api.github.com/repos/${REPO}/releases/latest`
 export const RELEASES_PAGE = `https://github.com/${REPO}/releases/latest`
 

@@ -46,6 +46,7 @@ import RoutineEdit from './views/RoutineEdit.jsx'
 import Workout from './views/Workout.jsx'
 import Stats from './views/Stats.jsx'
 import Calories from './views/Calories.jsx'
+import { initCalorieImport } from './lib/calorie-health.js'
 import History from './views/History.jsx'
 import Library from './views/Library.jsx'
 import Muscles from './views/Muscles.jsx'
@@ -82,6 +83,12 @@ function Shell() {
   const loc = useLocation()
   const navType = useNavigationType()
   const { S, user, ready } = useStore()
+  useEffect(() => {
+    if (!ready || !user) return
+    let cleanup, disposed = false
+    initCalorieImport(useStore.getState).then(stop => { if (disposed) stop(); else cleanup = stop }).catch(() => {})
+    return () => { disposed = true; cleanup?.() }
+  }, [ready, user?.id])
   // iOS: whether timer sounds get past the ring/silent switch (Settings → Sounds). Page-level,
   // so it is applied here on load and on change rather than at each beep.
   useEffect(() => { setPlayOnSilent(!!S.soundOnSilent) }, [S.soundOnSilent])

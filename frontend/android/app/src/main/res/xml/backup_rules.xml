@@ -10,4 +10,5 @@
 <full-backup-content>
     <exclude domain="file" path="opengym-media/" />
     <exclude domain="file" path="opengym-remote.json" />
+    <exclude domain="file" path="opengym-calorie-import.json" />
 </full-backup-content>

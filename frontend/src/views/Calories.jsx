@@ -1,10 +1,11 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useStore } from '../store/useStore.js'
 import { todayISO } from '../lib/format.js'
 import { calorieDay, calorieWeek } from '../lib/calories.js'
 import { MOBILE, nativePlatform } from '../lib/mobile.js'
 import { openHealthConnect } from '../lib/health-sync.js'
+import { connectSamsung, disconnectSamsung, samsungEnabled, syncSamsungDay } from '../lib/calorie-health.js'
 import Icon from '../components/Icon.jsx'
 import { Button } from '../components/ui.jsx'
 import './Calories.css'
@@ -15,16 +16,51 @@ const timestamp = value => Number.isFinite(value) && value > 0 ? new Date(value)
 export default function Calories() {
   const nav = useNavigate()
   const S = useStore(s => s.S)
+  const owner = useStore(s => s.user?.id)
+  const [enabled, setEnabled] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [android, setAndroid] = useState(false)
   const [date, setDate] = useState(todayISO())
   const [goal, setGoal] = useState(String(S.calorieGoal || ''))
   const [notice, setNotice] = useState('')
   const [healthMessage, setHealthMessage] = useState('')
-  const day = S.calorieDays?.[date] || {}
+  const dayFor = d => ({ yazio: S.calorieReadings?.[`yazio:${d}`], samsung: S.calorieReadings?.[`samsung:${d}`] })
+  const day = dayFor(date)
   const values = calorieDay(day, S.calorieGoal)
   const dates = calorieWeek(date)
-  const week = dates.map(d => ({ date: d, ...calorieDay(S.calorieDays?.[d]) }))
+  const week = dates.map(d => ({ date: d, ...calorieDay(dayFor(d)) }))
   const chartMax = Math.max(1, ...week.flatMap(d => [d.intake || 0, d.totalBurn || 0]))
   const hasWeek = week.some(d => d.intake !== null || d.totalBurn !== null)
+
+  useEffect(() => {
+    let gone = false
+    setEnabled(false); setHealthMessage('')
+    Promise.all([nativePlatform(), samsungEnabled(owner)]).then(([platform, on]) => {
+      if (!gone) { setAndroid(MOBILE && platform === 'android'); setEnabled(on) }
+    }).catch(() => { if (!gone) setHealthMessage('Could not read connection settings.') })
+    return () => { gone = true }
+  }, [owner])
+
+  async function syncSamsung(connect = false) {
+    if (busy) return
+    setBusy(true); setHealthMessage('')
+    try {
+      if (connect) await connectSamsung(owner, useStore.getState)
+      if (useStore.getState().user?.id !== owner) return
+      setEnabled(await samsungEnabled(owner))
+      const imported = await syncSamsungDay(date, useStore.getState)
+      if (useStore.getState().user?.id === owner) setHealthMessage(imported ? 'Imported available Samsung records for this day. Blank fields mean no reading was available.' : 'Import stopped. Check your account and connection settings.')
+    } catch (e) {
+      if (useStore.getState().user?.id === owner) setHealthMessage(e.message || 'Could not import Samsung data.')
+    } finally { setBusy(false) }
+  }
+
+  async function stopSamsung() {
+    setBusy(true)
+    try { await disconnectSamsung(); setEnabled(false); setHealthMessage('Imports stopped on this phone. Previously imported history is kept. You can revoke read permissions in Health Connect.') }
+    catch { setEnabled(false); setHealthMessage('Imports stopped for this session, but the setting could not be saved. Revoke OpenGym read permissions in Health Connect before restarting.') }
+    finally { setBusy(false) }
+  }
 
   function saveGoal(e) {
     e.preventDefault()
@@ -44,7 +80,7 @@ export default function Calories() {
         return
       }
       await openHealthConnect()
-      setHealthMessage('Opening Health Connect does not connect the importer. This build still needs the Android read integration.')
+      setHealthMessage('Check Samsung Health write permissions here, then return and choose Connect Samsung Health.')
     } catch {
       setHealthMessage('Could not open Health Connect. Open it from Samsung Health → Settings → Health Connect.')
     }
@@ -97,17 +133,22 @@ export default function Calories() {
     </section>
 
     <section className="card energy-connections" id="calorie-connections"><h2>Your data sources</h2>
-      <p className="muted small">Automatic import is not connected in this build. These setup guides do not start a transfer.</p>
+      <p className="muted small">Samsung imports run on the Android phone and sync to your account. Yazio Google sign-in is not connected yet.</p>
       <details><summary><span><strong>Yazio</strong><small>Food calories & macros</small></span><span className="energy-status">Setup needed</span></summary>
         <p>Keep using your existing Yazio account for meals. The next step is a direct food importer for OpenGym.</p>
         <p className="small muted">Your Google sign-in has not been connected to OpenGym yet. Opening Yazio or its help page will not grant access to your diary.</p>
         <a href="https://help.yazio.com/hc/en-us/sections/360000139445-Account-User-Data" target="_blank" rel="noopener noreferrer">Open Yazio account help ↗</a>
         <p className="small muted">Last imported: {timestamp(day.yazio?.at)}</p>
       </details>
-      <details><summary><span><strong>Samsung Health</strong><small>Movement, steps & burned calories</small></span><span className="energy-status">Setup needed</span></summary>
-        <p>Health Connect can share available steps and exercise calories with the Android app. Reading these records needs an updated OpenGym APK.</p>
+      <details><summary><span><strong>Samsung Health</strong><small>Movement, steps & burned calories</small></span><span className="energy-status">{enabled ? 'Enabled on this phone' : day.samsung ? 'Imported history' : 'Setup needed'}</span></summary>
+        <p>Read Samsung Health steps and exercise calories through Health Connect. New readings replace the selected day and sync with your OpenGym account.</p>
         <p className="small muted">The complete daily burn may require a direct Samsung integration. Nutrition stays on the separate Yazio connection.</p>
-        <Button variant="tinted" onClick={openSamsung}>{MOBILE ? 'Open Health Connect' : 'Show phone setup'}</Button>
+        {android && <div className="row" style={{ gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
+          <Button variant="tinted" disabled={busy || !owner} onClick={() => syncSamsung(!enabled)}>{busy ? 'Importing…' : enabled ? 'Sync selected day' : 'Connect Samsung Health'}</Button>
+          {enabled && <Button disabled={busy} onClick={stopSamsung}>Disconnect</Button>}
+          {!owner && <p className="small">Sign in to OpenGym first to keep health imports in your account.</p>}
+        </div>}
+        <Button onClick={openSamsung}>{android ? 'Health Connect settings' : 'Show phone setup'}</Button>
         {healthMessage && <p role="status" className="small">{healthMessage}</p>}
         <p className="small muted">Last imported: {timestamp(day.samsung?.at)}</p>
       </details>

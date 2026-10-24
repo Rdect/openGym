@@ -36,7 +36,7 @@
 - [x] Implement the web page, Home/Stats links and saved food target.
 - [x] Test missing versus zero, invalid values, no exercise double counting, over-target intake and year boundary.
 - [x] Build web and inspect the rendered page; fix calendar CSS class collision.
-- [ ] Create fork, document truthful status and push reviewed source only.
+- [x] Create fork, document truthful status and push reviewed source only.
 
 ## Task 2: Prove and implement Yazio read connection
 
@@ -45,7 +45,7 @@
 **Interfaces:** `readYazioDay(session, date, {fetch})` returns `{energy,protein,carbs,fat,at,timezone}` with nullable metrics. Authenticated routes: `GET /api/calories/status`, `POST /api/calories/yazio/connect`, `POST /api/calories/yazio/sync`, `DELETE /api/calories/yazio/connection`. `connect` accepts only the credential flow actually validated against Yazio; do not pretend Google authorization is implemented.
 
 - [ ] Inspect current upstream API clients and authentication; establish a supported flow for this user's Google-linked account without requesting Google passwords or copying secrets into chat.
-- [ ] If no supported flow can be verified, keep the source visibly blocked and continue independent Samsung work. Do not substitute sample data or silently change accounts.
+- [x] If no supported flow can be verified, keep the source visibly blocked and continue independent Samsung work. Do not substitute sample data or silently change accounts.
 - [ ] Add fixtures/tests for expired/rotated tokens, provider timeout, forbidden response, missing macros, recipe totals, amended/deleted meals and timezone boundaries. Inject fetch; no live diary writes.
 - [ ] Implement read-only provider requests with bounded timeouts, one refresh retry and per-user sync locking. Return sanitized errors.
 - [ ] Encrypt provider credentials using a local server key stored outside the repository/OneDrive; never serialize them into profile state, logs or exports. Disconnect deletes the connection's stored credentials and stops polling.
@@ -60,8 +60,8 @@
 
 - [ ] Inspect phone source availability: steps/exercise via Health Connect; full daily burn via Samsung SDK only if feasible. Do not relabel exercise energy as total burn.
 - [ ] Add permission/result contract tests including denied, revoked, no records, genuine zero, overlapping source records and midnight boundaries.
-- [ ] Add explicit read permissions separate from existing write permissions. Filter/aggregate source records to avoid counting phone/watch or OpenGym-written workouts twice.
-- [ ] Implement import on app resume when permission was already granted and on Sync now; no permission dialog before the user's Connect action.
+- [x] Add explicit read permissions separate from existing write permissions. Filter/aggregate source records to avoid counting phone/watch or OpenGym-written workouts twice.
+- [x] Implement import on app resume when permission was already granted and on Sync now; no permission dialog before the user's Connect action.
 - [ ] If full Samsung SDK is needed, assess package registration/partnership and personal development limitations before adding it; keep total burn unavailable if its prerequisites are unmet.
 - [ ] Compile Android and verify actual metrics/permission behavior on the user's phone; no fabricated values.
 

@@ -1515,7 +1515,7 @@ function RegisterInline({ close, setUser, pushState, pullState, toast }) {
 const HEALTH_COPY = {
   android: () => ({
     section: t('Health Connect'), write: t('Write to Health Connect'), open: t('Open Health Connect'),
-    footer: t('Workouts and weigh-ins go to Health Connect when you finish or change them. openGym reads nothing back.'),
+    footer: t('Workouts and weigh-ins go to Health Connect when you finish or change them. Optional Samsung steps and exercise imports are managed separately on the Calories screen.'),
     on: t('Writing to Health Connect'), denied: t('Health Connect permission not granted'), failed: t('Could not write to Health Connect'),
     removeFailed: t('Could not remove it from Health Connect'), stop: t('Stop writing to Health Connect?'),
     stopSub: t('What openGym already wrote can stay in Health Connect as your data, or be removed from it.'),

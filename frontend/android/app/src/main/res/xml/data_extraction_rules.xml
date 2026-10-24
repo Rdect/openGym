@@ -8,8 +8,10 @@
     <cloud-backup>
         <exclude domain="file" path="opengym-media/" />
         <exclude domain="file" path="opengym-remote.json" />
+        <exclude domain="file" path="opengym-calorie-import.json" />
     </cloud-backup>
     <device-transfer>
         <exclude domain="file" path="opengym-remote.json" />
+        <exclude domain="file" path="opengym-calorie-import.json" />
     </device-transfer>
 </data-extraction-rules>

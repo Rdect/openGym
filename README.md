@@ -1,4 +1,4 @@
-> **Independent fork — Rdect/openGym.** Based on [DuarteSantos8/openGym](https://github.com/DuarteSantos8/openGym), with an English Calories dashboard and planned Yazio/Samsung Health imports. **Live imports and a fork APK are not available yet.** See [fork status](docs/FORK.md) and the [implementation plan](docs/superpowers/plans/2026-10-24-calorie-tracking.md). Original project documentation and upstream download links follow below.
+> **Independent fork — Rdect/openGym.** Based on [DuarteSantos8/openGym](https://github.com/DuarteSantos8/openGym), with an English Calories dashboard and Samsung Health Connect imports ready for Android testing. **Phone verification is pending; Yazio Google authentication and full daily burn are not connected.** See [fork status and test instructions](docs/FORK.md) and the [implementation plan](docs/superpowers/plans/2026-10-24-calorie-tracking.md). Original project documentation and upstream download links follow below.
 
 <div align="center">
 

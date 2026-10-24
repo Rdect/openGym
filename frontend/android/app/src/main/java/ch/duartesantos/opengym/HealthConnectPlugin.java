@@ -20,6 +20,15 @@ import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.ActivityCallback;
 import com.getcapacitor.annotation.CapacitorPlugin;
 import java.time.Instant;
+import java.time.LocalDate;
+import androidx.health.connect.client.records.StepsRecord;
+import androidx.health.connect.client.records.TotalCaloriesBurnedRecord;
+import androidx.health.connect.client.records.metadata.DataOrigin;
+import androidx.health.connect.client.request.AggregateRequest;
+import androidx.health.connect.client.aggregate.AggregateMetric;
+import androidx.health.connect.client.aggregate.AggregationResult;
+import androidx.health.connect.client.time.TimeRangeFilter;
+import androidx.health.connect.client.units.Energy;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
@@ -69,6 +78,71 @@ public class HealthConnectPlugin extends Plugin {
     private static final String WRITE_WEIGHT = "android.permission.health.WRITE_WEIGHT";
     // Health Connect takes at most this many records in one insert.
     private static final int CHUNK = 500;
+    private static final String READ_STEPS = "android.permission.health.READ_STEPS";
+    private static final String READ_ENERGY = "android.permission.health.READ_TOTAL_CALORIES_BURNED";
+
+    private JSArray caloriePermissions(Set<String> allowed) {
+        JSArray result = new JSArray();
+        if (allowed.contains(READ_STEPS)) result.put("steps");
+        if (allowed.contains(READ_ENERGY)) result.put("exercise");
+        return result;
+    }
+
+    @PluginMethod
+    public void requestCaloriePermissions(PluginCall call) {
+        if (!"available".equals(sdkStatus())) { call.reject("Health Connect is unavailable. Update or install it first.", "unavailable"); return; }
+        Set<String> requested = new HashSet<>();
+        requested.add(READ_STEPS); requested.add(READ_ENERGY);
+        ActivityResultContract<Set<String>, Set<String>> contract = PermissionController.createRequestPermissionResultContract(PROVIDER);
+        startActivityForResult(call, contract.createIntent(getContext(), requested), "caloriePermissionsResult");
+    }
+
+    @ActivityCallback
+    private void caloriePermissionsResult(PluginCall call, ActivityResult result) {
+        if (call == null) return;
+        worker.execute(() -> {
+            try { JSObject answer = new JSObject(); answer.put("permissions", caloriePermissions(granted())); call.resolve(answer); }
+            catch (Exception e) { call.reject("Could not read Health Connect permissions.", "permission"); }
+        });
+    }
+
+    @PluginMethod
+    public void readCalorieDay(PluginCall call) {
+        if (!"available".equals(sdkStatus())) { call.reject("Health Connect is unavailable.", "unavailable"); return; }
+        final LocalDate day;
+        final ZoneId zone;
+        try {
+            day = LocalDate.parse(call.getString("date", ""));
+            zone = ZoneId.of(call.getString("timezone", ZoneId.systemDefault().getId()));
+            if (day.isAfter(LocalDate.now(zone))) throw new IllegalArgumentException();
+        } catch (Exception e) { call.reject("Choose a valid date and timezone.", "date"); return; }
+        worker.execute(() -> {
+            try {
+                Set<String> allowed = granted();
+                Set<AggregateMetric<?>> metrics = new HashSet<>();
+                if (allowed.contains(READ_STEPS)) metrics.add(StepsRecord.COUNT_TOTAL);
+                if (allowed.contains(READ_ENERGY)) metrics.add(TotalCaloriesBurnedRecord.ENERGY_TOTAL);
+                if (metrics.isEmpty()) { call.reject("Health Connect read permission was not granted.", "permission"); return; }
+                Instant start = day.atStartOfDay(zone).toInstant();
+                Instant end = day.plusDays(1).atStartOfDay(zone).toInstant();
+                if (end.isAfter(Instant.now())) end = Instant.now();
+                // One origin avoids adding phone/watch duplicates or OpenGym's own exports.
+                AggregateRequest request = new AggregateRequest(metrics, TimeRangeFilter.between(start, end), Collections.singleton(new DataOrigin("com.sec.android.app.shealth")));
+                AggregationResult totals = (AggregationResult) BuildersKt.runBlocking(EmptyCoroutineContext.INSTANCE, (scope, cont) -> client().aggregate(request, cont));
+                JSObject answer = new JSObject();
+                Long steps = metrics.contains(StepsRecord.COUNT_TOTAL) ? totals.get(StepsRecord.COUNT_TOTAL) : null;
+                Energy energy = metrics.contains(TotalCaloriesBurnedRecord.ENERGY_TOTAL) ? totals.get(TotalCaloriesBurnedRecord.ENERGY_TOTAL) : null;
+                answer.put("steps", steps == null ? JSONObject.NULL : steps);
+                // Samsung maps its exercise calorie records to TotalCaloriesBurnedRecord.
+                // These are NOT the complete daily activity-summary expenditure.
+                answer.put("exercise", energy == null ? JSONObject.NULL : energy.getKilocalories());
+                answer.put("totalBurn", JSONObject.NULL);
+                answer.put("at", System.currentTimeMillis()); answer.put("timezone", zone.getId());
+                answer.put("permissions", caloriePermissions(allowed)); call.resolve(answer);
+            } catch (SecurityException e) { call.reject("Health Connect permission was revoked. Reconnect Samsung Health.", "permission"); }
+            catch (Exception e) { call.reject("Could not read this day from Health Connect. Check permissions and try again.", "failed"); }
+        });
+    }
 
     // One at a time, in order: a remove queued behind a write must not overtake it.
     private final ExecutorService worker = Executors.newSingleThreadExecutor();
