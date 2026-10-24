@@ -1,0 +1,37 @@
+.calories-page { padding-bottom: 24px; }
+.calories-page h2 { font-size: 16px; margin: 0 0 12px; }
+.calories-page p { line-height: 1.6; }
+.energy-eyebrow { font-size: 10px; font-weight: 700; letter-spacing: .14em; color: var(--label-2); margin-bottom: 8px; }
+.energy-date-row { display: flex; gap: 12px; align-items: center; margin: 20px 0; }
+.energy-date-row label { font-weight: 600; white-space: nowrap; }
+.energy-date-row input { flex: 1; min-width: 0; width: auto; }
+.energy-hero { background: linear-gradient(135deg, color-mix(in srgb, var(--acc) 12%, var(--surface)), var(--surface)); border: 1px solid color-mix(in srgb, var(--acc) 28%, transparent); }
+.energy-big { font-size: clamp(42px, 10vw, 64px); font-weight: 750; line-height: 1.15; letter-spacing: -.04em; }
+.energy-big span { font-size: 18px; font-weight: 400; letter-spacing: 0; }
+.energy-hero-footer { display: flex; justify-content: space-between; gap: 12px; font-size: 13px; margin-top: 14px; }
+.energy-hero progress { width: 100%; height: 8px; accent-color: var(--acc); }
+.energy-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-bottom: 12px; }
+.energy-grid .card { margin: 0; }
+.energy-metric h2 { font-size: 13px; }
+.energy-metric-value { font-size: 30px; font-weight: 700; }
+.energy-metric-value small { font-size: 12px; font-weight: 400; }
+.energy-macros { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; font-size: 12px; }
+.energy-macros strong { display: block; font-size: 25px; margin-top: 10px; }
+.energy-macros small { font-size: 12px; font-weight: 400; }
+.energy-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 6px; }
+.protein { background: #7bbaff; }.carbs { background: #e8bc78; }.fat { background: #caa5ef; }
+.energy-empty { padding: 28px 4px; text-align: center; line-height: 1.8; }
+.energy-chart { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; }
+.energy-chart-day { text-align: center; font-size: 10px; display: flex; flex-direction: column; gap: 7px; }
+.energy-bars { height: 110px; display: flex; align-items: end; justify-content: center; gap: 3px; }
+.energy-bar { width: 10px; border-radius: 4px 4px 0 0; background: var(--acc); }
+.energy-bar.totalBurn { background: #7bbaff; }
+.energy-connections details { border-top: 1px solid var(--sep); padding: 16px 0 4px; }
+.energy-connections summary { cursor: pointer; display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 44px; }
+.energy-connections summary small { display: block; font-size: 12px; margin-top: 5px; color: var(--label-2); }
+.energy-status { background: var(--surface-3); padding: 6px 9px; border-radius: 20px; font-size: 11px; white-space: nowrap; }
+.energy-target-form { display: flex; gap: 12px; align-items: end; }
+.energy-target-form label { flex: 1; min-width: 0; font-size: 12px; }
+.energy-target-form input { margin-top: 8px; width: 100%; }
+.energy-future { text-align: center; padding: 12px; }
+@media (max-width: 360px) { .energy-target-form { flex-direction: column; align-items: stretch; } .energy-status { font-size: 10px; } }

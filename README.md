@@ -1,3 +1,5 @@
+> **Independent fork — Rdect/openGym.** Based on [DuarteSantos8/openGym](https://github.com/DuarteSantos8/openGym), with an English Calories dashboard and planned Yazio/Samsung Health imports. **Live imports and a fork APK are not available yet.** See [fork status](docs/FORK.md) and the [implementation plan](docs/superpowers/plans/2026-10-24-calorie-tracking.md). Original project documentation and upstream download links follow below.
+
 <div align="center">
 
 <img src="assets/banner.png" alt="openGym" width="720">

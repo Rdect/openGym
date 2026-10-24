@@ -107,6 +107,11 @@ export default function Home() {
       <button className="iconbtn" onClick={() => nav('/settings')} aria-label={trouble ? t('Settings') + ', ' + t('Connection problem') : t('Settings')}><Icon name="gear" />{trouble && <span className="tab-dot" aria-hidden="true" />}</button>
     </div>
 
+    <button className="card" style={{ width: '100%', textAlign: 'left', cursor: 'pointer', color: 'inherit' }} onClick={() => nav('/calories')}>
+      <div className="row between"><strong>Calories</strong><Icon name="chevronRight" /></div>
+      <div className="sub" style={{ marginTop: 6 }}>Food, movement & your daily balance</div>
+    </button>
+
     <div className="card">
       {/* A coach week runs by order, not by weekday, so its progress row stands in for the
           seven dots (components/QueueRow.jsx). The today row below stays as it is: the queue's
