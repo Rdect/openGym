@@ -1,11 +1,10 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useStore } from '../store/useStore.js'
-import { todayISO } from '../lib/format.js'
-import { calorieDay, calorieWeek } from '../lib/calories.js'
+import { calorieDay, calorieWeek, calorieKey, calorieReading, reportingTimezone, dayInZone, samsungReadingStatus } from '../lib/calories.js'
 import { MOBILE, nativePlatform } from '../lib/mobile.js'
 import { openHealthConnect } from '../lib/health-sync.js'
-import { connectSamsung, disconnectSamsung, samsungEnabled, syncSamsungDay } from '../lib/calorie-health.js'
+import { connectSamsung, disconnectSamsung, samsungEnabled, syncSamsungDay, syncRecentSamsungDays } from '../lib/calorie-health.js'
 import Icon from '../components/Icon.jsx'
 import { Button } from '../components/ui.jsx'
 import './Calories.css'
@@ -17,15 +16,22 @@ export default function Calories() {
   const nav = useNavigate()
   const S = useStore(s => s.S)
   const owner = useStore(s => s.user?.id)
+  const timezone = reportingTimezone(S)
+  const [now, setNow] = useState(Date.now)
+  const today = dayInZone(timezone, now)
   const [enabled, setEnabled] = useState(false)
   const [busy, setBusy] = useState(false)
   const [android, setAndroid] = useState(false)
-  const [date, setDate] = useState(todayISO())
+  const [date, setDate] = useState(() => dayInZone(timezone))
   const [goal, setGoal] = useState(String(S.calorieGoal || ''))
   const [notice, setNotice] = useState('')
   const [healthMessage, setHealthMessage] = useState('')
-  const dayFor = d => ({ yazio: S.calorieReadings?.[`yazio:${d}`], samsung: S.calorieReadings?.[`samsung:${d}`] })
+  const dayFor = d => ({ yazio: calorieReading(S, 'yazio', d, timezone), samsung: calorieReading(S, 'samsung', d, timezone) })
   const day = dayFor(date)
+  const attempt = S.calorieImportStatus?.[calorieKey('samsung', date, timezone)]
+  const status = samsungReadingStatus(day.samsung, attempt, now)
+  const needsPermission = (attempt?.state === 'permission' && attempt.at >= (day.samsung?.at || 0)) ||
+    (day.samsung && (!day.samsung.permissions?.includes('steps') || !day.samsung.permissions?.includes('exercise')))
   const values = calorieDay(day, S.calorieGoal)
   const dates = calorieWeek(date)
   const week = dates.map(d => ({ date: d, ...calorieDay(dayFor(d)) }))
@@ -33,10 +39,18 @@ export default function Calories() {
   const hasWeek = week.some(d => d.intake !== null || d.totalBurn !== null)
 
   useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 60000)
+    return () => clearInterval(timer)
+  }, [])
+
+  useEffect(() => {
     let gone = false
     setEnabled(false); setHealthMessage('')
     Promise.all([nativePlatform(), samsungEnabled(owner)]).then(([platform, on]) => {
-      if (!gone) { setAndroid(MOBILE && platform === 'android'); setEnabled(on) }
+      if (!gone) {
+        setAndroid(MOBILE && platform === 'android'); setEnabled(on)
+        if (on && platform === 'android') syncRecentSamsungDays(useStore.getState)
+      }
     }).catch(() => { if (!gone) setHealthMessage('Could not read connection settings.') })
     return () => { gone = true }
   }, [owner])
@@ -93,25 +107,35 @@ export default function Calories() {
     </div>
     <div className="energy-date-row">
       <label htmlFor="energy-date">Your day</label>
-      <input id="energy-date" className="field" type="date" max={todayISO()} value={date} onChange={e => { if (e.target.value && e.target.value <= todayISO()) setDate(e.target.value) }} />
-      <Button size="sm" onClick={() => setDate(todayISO())}>Today</Button>
+      <input id="energy-date" className="field" type="date" max={today} value={date} onChange={e => { if (e.target.value && e.target.value <= today) setDate(e.target.value) }} />
+      <Button size="sm" onClick={() => setDate(today)}>Today</Button>
     </div>
+    <p className="small muted">Reporting day: {timezone}. This account timezone stays fixed when you travel.</p>
 
     <section className="card energy-hero" aria-label="Daily calorie overview">
       <div className="energy-eyebrow">FOOD INTAKE · YAZIO</div>
       <div className="energy-big">{number(values.intake)} <span>kcal</span></div>
       <p className="muted">{values.intake === null ? 'Connect your food diary to bring your daily intake here.' : `Recorded for ${date}. Your day may still be in progress.`}</p>
+      {day.yazio && <p className="small muted">Last food import: {timestamp(day.yazio.at)}. Imported diary totals may be incomplete.</p>}
       {values.progress !== null && <progress aria-label="Food intake compared with daily target" max="100" value={values.progress} />}
       <div className="energy-hero-footer"><span>Daily food target</span><strong>{S.calorieGoal ? `${number(S.calorieGoal)} kcal` : 'Not set'}</strong></div>
       <div className="energy-hero-footer"><span>{values.remaining !== null && values.remaining < 0 ? 'Above target' : 'Remaining to target'}</span><strong>{number(values.remaining === null ? null : Math.abs(values.remaining))} kcal</strong></div>
     </section>
 
+    <section className="card energy-import-state" aria-label="Samsung import status" role="status">
+      <h2>Samsung readings · {date}</h2>
+      <p>{status}</p>
+      <p className="small muted">Last successful import: {timestamp(day.samsung?.at)} · Reporting timezone: {timezone}</p>
+      {attempt && <p className="small muted">Last attempt: {timestamp(attempt.at)}</p>}
+      {day.samsung?.observedThrough != null && <p className="small muted">Records queried through {new Date(day.samsung.observedThrough).toLocaleString('en-GB', { timeZone: timezone })} ({timezone}).</p>}
+    </section>
     <div className="energy-grid">
       <Metric title="Total daily burn" value={values.totalBurn} unit="kcal" note="Resting + active energy, when available" />
       <Metric title="Exercise calories" value={values.exercise} unit="kcal" note="A part of your daily burn; not added again" />
       <Metric title="Daily balance" value={values.balance} unit="kcal" note="Food intake minus total daily burn" />
       <Metric title="Steps" value={values.steps} unit="steps" note="From Samsung Health" />
     </div>
+    {values.intake !== null && values.totalBurn !== null && values.balance === null && <p role="status">Balance unavailable: the source reporting intervals are missing or do not match.</p>}
 
     <section className="card"><h2>Food breakdown</h2><div className="energy-macros">
       <div><span className="energy-dot protein" />Protein<strong>{number(values.protein)} <small>g</small></strong></div>
@@ -140,11 +164,12 @@ export default function Calories() {
         <a href="https://help.yazio.com/hc/en-us/sections/360000139445-Account-User-Data" target="_blank" rel="noopener noreferrer">Open Yazio account help ↗</a>
         <p className="small muted">Last imported: {timestamp(day.yazio?.at)}</p>
       </details>
-      <details><summary><span><strong>Samsung Health</strong><small>Movement, steps & burned calories</small></span><span className="energy-status">{enabled ? 'Enabled on this phone' : day.samsung ? 'Imported history' : 'Setup needed'}</span></summary>
+      <details><summary><span><strong>Samsung Health</strong><small>Movement, steps & burned calories</small></span><span className="energy-status">{needsPermission ? 'Check permissions' : enabled ? 'Auto-import requested' : day.samsung ? 'Imported history' : 'Setup needed'}</span></summary>
         <p>Read Samsung Health steps and exercise calories through Health Connect. New readings replace the selected day and sync with your OpenGym account.</p>
         <p className="small muted">The complete daily burn may require a direct Samsung integration. Nutrition stays on the separate Yazio connection.</p>
         {android && <div className="row" style={{ gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
           <Button variant="tinted" disabled={busy || !owner} onClick={() => syncSamsung(!enabled)}>{busy ? 'Importing…' : enabled ? 'Sync selected day' : 'Connect Samsung Health'}</Button>
+          {enabled && needsPermission && <Button disabled={busy || !owner} onClick={() => syncSamsung(true)}>Review permissions</Button>}
           {enabled && <Button disabled={busy} onClick={stopSamsung}>Disconnect</Button>}
           {!owner && <p className="small">Sign in to OpenGym first to keep health imports in your account.</p>}
         </div>}

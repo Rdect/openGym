@@ -84,7 +84,7 @@ const list = v => (Array.isArray(v) ? v : [])
 // The maps whose every entry carries its own edit time (mergeStampedMap). dayNotes is a day's
 // note on a day off (lib/day-notes.js), one entry per date.
 // dayPhotos is a progress photo filed under a day (lib/day-photos.js), one entry per photo.
-export const STAMPED_MAPS = ['balanceOverrides', 'loadKind', 'plates', 'dbLoad', 'dumbbells', 'dayNotes', 'dayPhotos', 'calorieReadings']
+export const STAMPED_MAPS = ['balanceOverrides', 'loadKind', 'plates', 'dbLoad', 'dumbbells', 'dayNotes', 'dayPhotos', 'calorieReadings', 'calorieImportStatus']
 
 /** The copy with the later `_ts`; on a tie the first argument (callers pass local first). */
 export const newerOf = (a, b) => ((b?._ts || 0) > (a?._ts || 0) ? b : a)
@@ -613,7 +613,7 @@ function applyDeletions(S, deleted) {
 const OWN_MERGE = new Set([
   '_ts', '_rev', '_wid', '_wids', '_unstamped', '_prior', 'active', 'unit', 'unitSet', 'resetAt', 'resetIds', 'deleted', 'edited', 'undone', 'routineOrder',
   'workouts', 'routines', 'customEx', 'equipProfiles', 'gymCards', 'bodyweight', 'measurements', 'favEx',
-  'exWeights', 'balanceOverrides', 'loadKind', 'plates', 'dbLoad', 'dumbbells', 'dayNotes', 'dayPhotos', 'calorieReadings',
+  'exWeights', 'balanceOverrides', 'loadKind', 'plates', 'dbLoad', 'dumbbells', 'dayNotes', 'dayPhotos', 'calorieReadings', 'calorieImportStatus',
 ])
 // Stamped per key instead of whole: one day of the plan, one exercise's note or bar.
 const PER_KEY = new Set(['week', 'dayPlan', 'exNotes', 'barWeights'])
@@ -854,7 +854,7 @@ export function mergeStates(a0, b0, { prefer } = {}) {
     if (n[f] || o[f]) {
       const merged = mergeStampedMap(n[f], o[f], prefer)
       // Provider observation time survives later saves and clock-adjusted edit stamps.
-      if (f === 'calorieReadings' && !prefer) for (const k of Object.keys(merged)) {
+      if (['calorieReadings', 'calorieImportStatus'].includes(f) && !prefer) for (const k of Object.keys(merged)) {
         const a = n[f]?.[k], b = o[f]?.[k]
         if (a && b) {
           const at = Number(a.at) || 0, bt = Number(b.at) || 0

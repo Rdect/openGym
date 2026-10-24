@@ -123,11 +123,9 @@ public class HealthConnectPlugin extends Plugin {
                 if (allowed.contains(READ_STEPS)) metrics.add(StepsRecord.COUNT_TOTAL);
                 if (allowed.contains(READ_ENERGY)) metrics.add(TotalCaloriesBurnedRecord.ENERGY_TOTAL);
                 if (metrics.isEmpty()) { call.reject("Health Connect read permission was not granted.", "permission"); return; }
-                Instant start = day.atStartOfDay(zone).toInstant();
-                Instant end = day.plusDays(1).atStartOfDay(zone).toInstant();
-                if (end.isAfter(Instant.now())) end = Instant.now();
+                CalorieInterval interval = CalorieInterval.of(day, zone, Instant.now());
                 // One origin avoids adding phone/watch duplicates or OpenGym's own exports.
-                AggregateRequest request = new AggregateRequest(metrics, TimeRangeFilter.between(start, end), Collections.singleton(new DataOrigin("com.sec.android.app.shealth")));
+                AggregateRequest request = new AggregateRequest(metrics, TimeRangeFilter.between(interval.start, interval.observedThrough), Collections.singleton(new DataOrigin("com.sec.android.app.shealth")));
                 AggregationResult totals = (AggregationResult) BuildersKt.runBlocking(EmptyCoroutineContext.INSTANCE, (scope, cont) -> client().aggregate(request, cont));
                 JSObject answer = new JSObject();
                 Long steps = metrics.contains(StepsRecord.COUNT_TOTAL) ? totals.get(StepsRecord.COUNT_TOTAL) : null;
@@ -138,6 +136,10 @@ public class HealthConnectPlugin extends Plugin {
                 answer.put("exercise", energy == null ? JSONObject.NULL : energy.getKilocalories());
                 answer.put("totalBurn", JSONObject.NULL);
                 answer.put("at", System.currentTimeMillis()); answer.put("timezone", zone.getId());
+                answer.put("date", day.toString());
+                answer.put("intervalStart", interval.start.toEpochMilli());
+                answer.put("intervalEnd", interval.end.toEpochMilli());
+                answer.put("observedThrough", interval.observedThrough.toEpochMilli());
                 answer.put("permissions", caloriePermissions(allowed)); call.resolve(answer);
             } catch (SecurityException e) { call.reject("Health Connect permission was revoked. Reconnect Samsung Health.", "permission"); }
             catch (Exception e) { call.reject("Could not read this day from Health Connect. Check permissions and try again.", "failed"); }

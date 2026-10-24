@@ -1,6 +1,5 @@
-import { calorieValue } from './calories.js'
+import { calorieValue, calorieKey, calorieWeek, dayInZone, reportingTimezone, validTimezone } from './calories.js'
 import { MOBILE, nativePlatform, readJsonFile } from './mobile.js'
-import { todayISO } from './format.js'
 
 const PREF = 'opengym-calorie-import.json'
 let stopped = false
@@ -16,16 +15,20 @@ export function normalizeSamsungDay(raw = {}) {
     exercise: permissions.includes('exercise') ? calorieValue(raw.exercise) : null,
     // Samsung's Health Connect energy is exercise energy, not its daily activity summary.
     totalBurn: null, permissions, source: 'samsung-health-connect',
-    at: calorieValue(raw.at) || Date.now(), timezone: typeof raw.timezone === 'string' ? raw.timezone : 'UTC',
+    at: calorieValue(raw.at) || Date.now(), timezone: validTimezone(raw.timezone) ? raw.timezone : null,
+    intervalStart: calorieValue(raw.intervalStart), intervalEnd: calorieValue(raw.intervalEnd),
+    observedThrough: calorieValue(raw.observedThrough),
   }
 }
 
 export function saveSamsungReading(state, date, raw) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !Number.isFinite(Date.parse(date)) || new Date(date).toISOString().slice(0, 10) !== date) throw Error('Invalid date')
   const snapshot = normalizeSamsungDay(raw)
+  if (!snapshot.timezone) throw Error('Missing reporting timezone')
+  const key = calorieKey('samsung', date, snapshot.timezone)
   state.calorieReadings ||= {}
-  if ((state.calorieReadings[`samsung:${date}`]?.at || 0) > snapshot.at) return
-  state.calorieReadings[`samsung:${date}`] = { ...snapshot, _ts: Date.now() }
+  if ((state.calorieReadings[key]?.at || 0) > snapshot.at) return
+  state.calorieReadings[key] = { ...snapshot, date, _ts: Date.now() }
 }
 
 async function native() {
@@ -55,6 +58,8 @@ export async function connectSamsung(owner, getState, { request, write = saveCon
   if (!result.permissions?.length) throw Error('Allow Steps or Exercise calories to connect Samsung Health.')
   await write({ owner })
   if (!current()) { await disconnectSamsung(write); throw Error('Account or consent changed. Connect again.') }
+  const zone = reportingTimezone(getState().S)
+  if (!getState().S.calorieTimezone && getState().update) getState().update(s => { s.calorieTimezone = zone })
   stopped = false
 }
 
@@ -62,18 +67,53 @@ export async function connectSamsung(owner, getState, { request, write = saveCon
 // or resurrect readings after a reset/disconnect while the system dialog was open.
 export async function importSamsungDay({ date, getState, read, enabled = samsungEnabled }) {
   const before = getState(), owner = before.user?.id, reset = before.S.resetAt, generation = consentGeneration
+  const timezone = reportingTimezone(before.S)
+  const current = () => getState().user?.id === owner && getState().S.resetAt === reset && generation === consentGeneration
   if (!owner || !await enabled(owner)) return false
-  const raw = await read(date)
-  if (!await enabled(owner)) return false
-  const after = getState()
-  if (after.user?.id !== owner || after.S.resetAt !== reset || generation !== consentGeneration) return false
-  after.update(s => saveSamsungReading(s, date, raw))
-  return true
+  if (!current()) return false
+  try {
+    const raw = await read(date, timezone)
+    if (!await enabled(owner) || !current()) return false
+    if (raw.timezone !== timezone || (raw.date && raw.date !== date)) throw Error('Reporting interval mismatch')
+    getState().update(s => {
+      s.calorieTimezone ||= timezone
+      saveSamsungReading(s, date, raw)
+      saveImportStatus(s, date, timezone, 'success', raw.at || Date.now())
+    })
+    return true
+  } catch (error) {
+    if (!await enabled(owner) || !current()) return false
+    const state = error?.code === 'permission' ? 'permission' : 'failed'
+    getState().update(s => {
+      s.calorieTimezone ||= timezone
+      saveImportStatus(s, date, timezone, state, Date.now())
+    })
+    throw Error(state === 'permission' ? 'Health Connect read permission is missing or revoked. Reconnect Samsung Health.' : 'Samsung import failed. Saved readings were kept; retry on Android.')
+  }
+}
+
+function saveImportStatus(s, date, timezone, state, at) {
+  const key = calorieKey('samsung', date, timezone)
+  s.calorieImportStatus ||= {}
+  if ((s.calorieImportStatus[key]?.at || 0) > at) return
+  s.calorieImportStatus[key] = { state, at, date, timezone, _ts: Date.now() }
 }
 
 export async function syncSamsungDay(date, getState) {
-  const { plugin } = await native()
-  return importSamsungDay({ date, getState, read: d => plugin.readCalorieDay({ date: d, timezone: Intl.DateTimeFormat().resolvedOptions().timeZone }) })
+  return importSamsungDay({ date, getState, read: async (d, timezone) => {
+    const { plugin } = await native()
+    return plugin.readCalorieDay({ date: d, timezone })
+  } })
+}
+
+export async function syncRecentSamsungDays(getState, { now = Date.now(), sync = syncSamsungDay, enabled = samsungEnabled } = {}) {
+  const before = getState(), owner = before.user?.id, reset = before.S.resetAt, generation = consentGeneration
+  if (!before.ready || !owner) return
+  const days = calorieWeek(dayInZone(reportingTimezone(before.S), now)).slice(-2).reverse()
+  for (const date of days) {
+    if (!await enabled(owner) || getState().user?.id !== owner || getState().S.resetAt !== reset || generation !== consentGeneration) return
+    try { await sync(date, getState) } catch { /* syncSamsungDay stores a visible, sanitized failure for this day. Continue yesterday. */ }
+  }
 }
 
 export async function initCalorieImport(getState) {
@@ -83,8 +123,8 @@ export async function initCalorieImport(getState) {
     if (running || disposed || !getState().ready || !getState().user) return
     running = true
     try {
-      if (await samsungEnabled(getState().user.id)) await syncSamsungDay(todayISO(), getState)
-    } catch { /* The Calories screen retries explicitly and displays the error. Old readings retain their timestamp. */ }
+      await syncRecentSamsungDays(getState)
+    }
     finally { running = false }
   }
   const { App } = await import('@capacitor/app')
