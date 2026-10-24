@@ -30,8 +30,9 @@
 .energy-connections summary { cursor: pointer; display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 44px; }
 .energy-connections summary small { display: block; font-size: 12px; margin-top: 5px; color: var(--label-2); }
 .energy-status { background: var(--surface-3); padding: 6px 9px; border-radius: 20px; font-size: 11px; white-space: nowrap; }
-.energy-target-form { display: flex; gap: 12px; align-items: end; }
-.energy-target-form label { flex: 1; min-width: 0; font-size: 12px; }
+.energy-target-form { display: flex; flex-wrap: wrap; gap: 12px; align-items: end; }
+.energy-target-form label { flex: 1 1 160px; min-width: 0; font-size: 12px; }
+.energy-target-form > button { flex: 0 0 auto; width: auto; }
 .energy-target-form input { margin-top: 8px; width: 100%; }
 .energy-future { text-align: center; padding: 12px; }
 @media (max-width: 360px) { .energy-target-form { flex-direction: column; align-items: stretch; } .energy-status { font-size: 10px; } }
